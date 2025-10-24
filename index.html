@@ -1,0 +1,1670 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ứng Dụng Tạo Ma Trận Đề Kiểm Tra</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Add mammoth.js for DOCX parsing -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
+<!-- Firebase SDKs - ĐÃ XÓA TỪ ĐÂY, CHUYỂN SANG IMPORT TRONG MODULE -->
+
+<script>
+    tailwind.config = {
+        darkMode: 'class',
+        theme: {
+            extend: {
+                colors: {
+                    primary: '#5D5CDE',
+                    light: '#FFFFFF',
+                    dark: '#181818'
+                }
+            }
+        }
+    }
+</script>
+<style>
+    .btn-primary {
+        @apply bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors duration-200 text-base font-medium shadow-md;
+    }
+    .btn-secondary {
+        @apply bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors duration-200 text-base font-medium shadow-md;
+    }
+    .btn-outline {
+        @apply border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200 text-base font-medium;
+    }
+    .btn-danger {
+        @apply bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors duration-200 text-base font-medium shadow-md;
+    }
+    .btn-primary:disabled, .btn-secondary:disabled, .btn-outline:disabled, .btn-danger:disabled {
+        @apply opacity-50 cursor-not-allowed;
+    }
+    
+    .matrix-cell {
+        transition: all 0.2s ease;
+        border: 2px solid #e5e7eb;
+    }
+    .matrix-cell:hover {
+        border-color: #5D5CDE;
+        background-color: #f8fafc;
+    }
+    .dark .matrix-cell:hover {
+        background-color: #374151;
+    }
+    .matrix-cell.filled {
+        background-color: #eff6ff;
+        border-color: #3b82f6;
+    }
+    .dark .matrix-cell.filled {
+        background-color: #1e3a8a;
+        border-color: #60a5fa;
+    }
+    .modal-overlay {
+        backdrop-filter: blur(4px);
+    }
+    /* Custom scrollbar for specification library */
+    #specificationModalBody::-webkit-scrollbar, #firebaseMatrixList::-webkit-scrollbar {
+        width: 8px;
+    }
+    #specificationModalBody::-webkit-scrollbar-track, #firebaseMatrixList::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+    .dark #specificationModalBody::-webkit-scrollbar-track, .dark #firebaseMatrixList::-webkit-scrollbar-track {
+        background: #2d3748;
+    }
+    #specificationModalBody::-webkit-scrollbar-thumb, #firebaseMatrixList::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 10px;
+    }
+    #specificationModalBody::-webkit-scrollbar-thumb:hover, #firebaseMatrixList::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+</style>
+</head>
+<body class="bg-light dark:bg-dark text-gray-900 dark:text-gray-100 transition-colors duration-300">
+<!-- Header -->
+<header class="bg-white dark:bg-gray-800 shadow-lg border-b border-gray-200 dark:border-gray-700">
+    <div class="container mx-auto px-4 py-6">
+        <h1 class="text-3xl font-bold text-center text-primary">
+            <i class="fas fa-th-large mr-2"></i>
+            Ứng Dụng Tạo Ma Trận Đề Kiểm Tra
+        </h1>
+        <p class="text-center text-gray-600 dark:text-gray-400 mt-2">
+            Tạo ma trận đề kiểm tra và sinh câu hỏi tự động bằng AI-TG: Tìa Quốc Thắng
+        </p>
+    </div>
+</header>
+
+<main class="container mx-auto px-4 py-8 max-w-7xl">
+    <!-- Control Panel -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
+        <div class="flex flex-wrap gap-4 justify-center">
+            <button onclick="showTopicModal()" class="btn-primary">
+                <i class="fas fa-plus mr-2"></i>Thêm Chủ đề
+            </button>
+            <button onclick="showScoreModal()" class="btn-outline">
+                <i class="fas fa-cog mr-2"></i>Thiết Lập Điểm Số
+            </button>
+            <button onclick="generateAITest()" class="btn-secondary">
+                <i class="fas fa-magic mr-2"></i>Tạo Đề Thi Bằng AI
+            </button>
+            <button onclick="exportMatrix()" class="btn-outline">
+                <i class="fas fa-download mr-2"></i>Xuất Ma Trận
+            </button>
+            <button onclick="exportExcel()" class="btn-outline">
+                <i class="fas fa-file-excel mr-2"></i>Xuất Excel
+            </button>
+            <button onclick="importMatrix()" class="btn-outline">
+                <i class="fas fa-upload mr-2"></i>Nhập Ma Trận
+            </button>
+            <!-- Firebase Buttons -->
+            <button onclick="showSaveFirebaseModal()" class="btn-outline" id="btn-save-firebase">
+                <i class="fas fa-cloud-upload-alt mr-2"></i>Lưu lên Cloud
+            </button>
+            <button onclick="openLoadFirebaseModal()" class="btn-outline" id="btn-load-firebase">
+                <i class="fas fa-cloud-download-alt mr-2"></i>Mở từ Cloud
+            </button>
+            <!-- End Firebase Buttons -->
+            <button onclick="clearAll()" class="btn-danger">
+                <i class="fas fa-trash mr-2"></i>Xóa Tất Cả
+            </button>
+        </div>
+    </div>
+
+    <!-- Topics Management -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
+        <h2 class="text-xl font-bold mb-4">
+            <i class="fas fa-list mr-2"></i>Quản lý Chủ đề
+        </h2>
+        <div id="topicsList" class="flex flex-wrap gap-2">
+            <!-- Topics will be displayed here -->
+        </div>
+    </div>
+
+    <!-- Matrix Section -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
+        <h2 class="text-xl font-bold mb-4">
+            <i class="fas fa-table mr-2"></i>Ma Trận Đề
+        </h2>
+        <p class="text-gray-600 dark:text-gray-400 mb-4">
+            Nhấp vào ô trong ma trận để xem chi tiết yêu cầu cần đạt.
+        </p>
+        <div class="overflow-x-auto">
+            <div id="matrixContainer" class="min-w-full">
+                <div id="matrixGrid" class="grid gap-2">
+                    <!-- Matrix will be generated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Table -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+        <h2 class="text-xl font-bold mb-4">
+            <i class="fas fa-chart-bar mr-2"></i>Bảng Tổng Kết
+        </h2>
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse">
+                <thead>
+                <tr class="bg-gray-50 dark:bg-gray-700">
+                    <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left">Chủ đề</th>
+                    <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center">
+                        Nhận biết<br>
+                        <span id="knowledgePercent" class="text-xs text-gray-500 dark:text-gray-400">(40%)</span>
+                    </th>
+                    <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center">
+                        Thông hiểu<br>
+                        <span id="comprehensionPercent" class="text-xs text-gray-500 dark:text-gray-400">(40%)</span>
+                    </th>
+                    <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center">
+                        Vận dụng<br>
+                        <span id="applicationPercent" class="text-xs text-gray-500 dark:text-gray-400">(20%)</span>
+                    </th>
+                    <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center">Tổng</th>
+                    <th class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center">Điểm</th>
+                </tr>
+                </thead>
+                <tbody id="summaryTableBody">
+                <!-- Summary data will be populated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+<!-- Topic Modal -->
+<div id="topicModal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay hidden flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold">Thêm Chủ đề mới</h3>
+            <button onclick="closeTopicModal()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <input type="text" id="topicNameInput" placeholder="Tên chủ đề"
+               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+        <div class="flex justify-end mt-4 space-x-2">
+            <button onclick="closeTopicModal()" class="btn-outline">Hủy</button>
+            <button onclick="addTopic()" class="btn-primary">Lưu Chủ đề</button>
+        </div>
+    </div>
+</div>
+
+    <!-- Cell Detail Modal -->
+<div id="cellModal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay hidden flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full mx-4">
+        <div class="flex justify-between items-center mb-4">
+            <h3 id="cellModalTitle" class="text-lg font-bold">Chi tiết ô ma trận</h3>
+            <button onclick="closeCellModal()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="space-y-4 mb-4">
+            <div>
+                <label class="block text-sm font-medium mb-2">
+                    <i class="fas fa-list mr-1"></i>Trắc nghiệm 4 đáp án:
+                </label>
+                <input type="number" id="multipleChoiceCount" min="0" max="20" oninput="updateTotalQuestionsInModal()"
+                       class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-2">
+                    <i class="fas fa-check-square mr-1"></i>Câu đúng/sai (1 câu = 4 ý):
+                </label>
+                <input type="number" id="trueFalseCount" min="0" max="10" oninput="updateTotalQuestionsInModal()"
+                       class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-2">
+                    <i class="fas fa-edit mr-1"></i>Câu tự luận:
+                </label>
+                <input type="number" id="essayCount" min="0" max="10" oninput="updateTotalQuestionsInModal()"
+                       class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+            </div>
+            <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md">
+                <div class="text-sm text-blue-700 dark:text-blue-300">
+                    <p><strong>Tổng câu hỏi:</strong> <span id="totalQuestions">0</span> câu</p>
+                    <p><strong>Tổng điểm:</strong> <span id="totalScore">0</span> điểm</p>
+                </div>
+            </div>
+        </div>
+        <div class="mb-4">
+            <label class="block text-sm font-medium mb-2">
+                <i class="fas fa-map-marker-alt mr-1"></i>Vị trí câu hỏi trong đề:
+            </label>
+            <input type="text" id="questionPosition" placeholder="VD: Câu 1-5, Câu I.1-I.3, Phần A..."
+                   class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+        </div>
+        
+        <!-- Specification Library Button and Notes Textarea -->
+        <div class="mb-4">
+            <label class="block text-sm font-medium mb-2">Ghi chú (Yêu cầu cần đạt):</label>
+            <button onclick="openSpecificationModal()" class="btn-secondary w-full mb-2">
+                <i class="fas fa-book mr-2"></i>Chọn từ Thư viện Đặc tả
+            </button>
+            <textarea id="cellNotes" rows="4" placeholder="Mô tả yêu cầu, nội dung cần kiểm tra... hoặc chọn từ thư viện"
+                      class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white"></textarea>
+        </div>
+
+        <div class="flex justify-end space-x-2">
+            <button onclick="closeCellModal()" class="btn-outline">Hủy</button>
+            <button onclick="saveCellData()" class="btn-primary">Lưu</button>
+        </div>
+    </div>
+</div>
+
+<!-- AI Test Generation Modal -->
+<div id="aiModal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay hidden flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-screen overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold">
+                <i class="fas fa-magic mr-2"></i>Đề Thi & Đáp Án Do AI Tạo
+            </h3>
+            <button onclick="closeAIModal()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="aiLoadingState" class="text-center py-8">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p class="text-gray-600 dark:text-gray-400">AI đang sáng tạo câu hỏi và đáp án... Vui lòng chờ trong giây lát.</p>
+        </div>
+        <div id="aiContent" class="hidden">
+            <div id="aiGeneratedTest" class="prose dark:prose-invert max-w-none mb-4">
+                <!-- AI generated content will appear here -->
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button onclick="regenerateTest()" class="btn-outline">
+                    <i class="fas fa-redo mr-2"></i>Tạo lại
+                </button>
+                <button onclick="exportTest()" class="btn-primary">
+                    <i class="fas fa-download mr-2"></i>Xuất Đề & Đáp án
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Score Settings Modal -->
+<div id="scoreModal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay hidden flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full mx-4">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold">
+                <i class="fas fa-cog mr-2"></i>Thiết Lập Điểm Số
+            </h3>
+            <button onclick="closeScoreModal()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="space-y-4">
+            <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                <h4 class="font-bold mb-3 text-blue-800 dark:text-blue-200">
+                    <i class="fas fa-calculator mr-2"></i>Điểm số mỗi loại câu hỏi
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Trắc nghiệm 4 đáp án:</label>
+                        <input type="number" id="scoreMultipleChoice" step="0.25" min="0" max="10" value="0.25" oninput="updateScoreCalculationInModal()"
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+                        <span class="text-xs text-gray-500">điểm</span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Đúng/Sai (4 ý):</label>
+                        <input type="number" id="scoreTrueFalse" step="0.25" min="0" max="10" value="1" oninput="updateScoreCalculationInModal()"
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+                        <span class="text-xs text-gray-500">điểm</span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Tự luận:</label>
+                        <input type="number" id="scoreEssay" step="0.25" min="0" max="10" value="1.0" oninput="updateScoreCalculationInModal()"
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+                        <span class="text-xs text-gray-500">điểm</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                <h4 class="font-bold mb-3 text-green-800 dark:text-green-200">
+                    <i class="fas fa-percentage mr-2"></i>Tỉ lệ mức độ mong muốn (%)
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Nhận biết:</label>
+                        <input type="number" id="percentKnowledge" min="0" max="100" value="40" oninput="updatePercentageTotalInModal()"
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+                        <span class="text-xs text-gray-500">%</span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Thông hiểu:</label>
+                        <input type="number" id="percentComprehension" min="0" max="100" value="30" oninput="updatePercentageTotalInModal()"
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+                        <span class="text-xs text-gray-500">%</span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Vận dụng:</label>
+                        <input type="number" id="percentApplication" min="0" max="100" value="30" oninput="updatePercentageTotalInModal()"
+                               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+                        <span class="text-xs text-gray-500">%</span>
+                    </div>
+                </div>
+                <div class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                    <span id="totalPercent">Tổng: 100%</span>
+                </div>
+            </div>
+
+            <div class="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
+                <h4 class="font-bold mb-3 text-purple-800 dark:text-purple-200">
+                    <i class="fas fa-info-circle mr-2"></i>Thông tin tổng điểm
+                </h4>
+                <div id="scoreCalculation" class="text-sm space-y-1">
+                    <!-- Score calculation will be displayed here -->
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-end mt-6 space-x-2">
+            <button onclick="closeScoreModal()" class="btn-outline">Hủy</button>
+            <button onclick="saveScoreSettings()" class="btn-primary">Lưu Thiết Lập</button>
+        </div>
+    </div>
+</div>
+
+<!-- Specification Library Modal -->
+<div id="specificationModal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay hidden flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-2xl w-full mx-4 flex flex-col" style="height: 80vh;">
+        <div class="flex justify-between items-center mb-4 flex-shrink-0">
+            <h3 class="text-lg font-bold"><i class="fas fa-book mr-2"></i>Thư viện Đặc tả (Yêu cầu cần đạt)</h3>
+            <button onclick="closeSpecificationModal()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="flex flex-wrap gap-2 mb-4 flex-shrink-0">
+            <input type="text" id="specificationSearch" onkeyup="searchSpecifications()" placeholder="Tìm kiếm yêu cầu..." class="flex-grow px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+            <button onclick="importFromDocx()" class="btn-primary">
+                <i class="fas fa-file-word mr-2"></i>Nhập từ DOCX
+            </button>
+            <button onclick="clearLibrary()" class="btn-danger">
+                <i class="fas fa-trash-alt mr-2"></i>Xóa thư viện
+            </button>
+        </div>
+
+        <div id="specificationModalBody" class="overflow-y-auto flex-grow pr-2">
+            <ul id="specificationList" class="space-y-2">
+                <!-- Library items will be populated here -->
+            </ul>
+        </div>
+
+        <div class="flex justify-end mt-4 space-x-2 flex-shrink-0">
+            <button onclick="closeSpecificationModal()" class="btn-outline">Đóng</button>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div id="successModal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay hidden flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div class="text-center">
+            <div class="w-16 h-16 mx-auto mb-4 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+                <i class="fas fa-check text-2xl text-green-600 dark:text-green-400"></i>
+            </div>
+            <h3 class="text-lg font-bold mb-2">Thành công!</h3>
+            <p id="successMessage" class="text-gray-600 dark:text-gray-400 mb-4"></p>
+            <button onclick="closeSuccessModal()" class="btn-primary">Đóng</button>
+        </div>
+    </div>
+</div>
+
+<!-- Save Firebase Modal -->
+<div id="saveFirebaseModal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay hidden flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold"><i class="fas fa-cloud-upload-alt mr-2"></i>Lưu Ma Trận lên Cloud</h3>
+            <button onclick="closeSaveFirebaseModal()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <label for="matrixNameInput" class="block text-sm font-medium mb-2">Tên Ma Trận:</label>
+        <input type="text" id="matrixNameInput" placeholder="VD: Ma trận kiểm tra giữa kỳ 1"
+               class="w-full px-3 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white">
+        <div class="flex justify-end mt-4 space-x-2">
+            <button onclick="closeSaveFirebaseModal()" class="btn-outline">Hủy</button>
+            <button onclick="saveMatrixToFirebase()" id="saveFirebaseBtn" class="btn-primary">Lưu</button>
+        </div>
+    </div>
+</div>
+
+<!-- Load Firebase Modal -->
+<div id="loadFirebaseModal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay hidden flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-2xl w-full mx-4 flex flex-col" style="height: 80vh;">
+        <div class="flex justify-between items-center mb-4 flex-shrink-0">
+            <h3 class="text-lg font-bold"><i class="fas fa-cloud-download-alt mr-2"></i>Mở Ma Trận từ Cloud</h3>
+            <button onclick="closeLoadFirebaseModal()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div id="firebaseMatrixList" class="overflow-y-auto flex-grow pr-2 space-y-3">
+            <!-- List of saved matrices will appear here -->
+            <div class="text-center py-4">
+                <i class="fas fa-spinner fa-spin text-2xl text-primary"></i>
+                <p class="mt-2">Đang tải danh sách ma trận...</p>
+            </div>
+        </div>
+
+        <div class="flex justify-end mt-4 space-x-2 flex-shrink-0">
+            <button onclick="closeLoadFirebaseModal()" class="btn-outline">Đóng</button>
+        </div>
+    </div>
+</div>
+
+
+    <script type="module">
+    // Firebase SDKs
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Dark mode setup
+    if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark')
+    } else {
+        document.documentElement.classList.remove('dark')
+    }
+
+    // Global state
+    let topics = ['Chủ đề 1', 'Chủ đề 2', 'Chủ đề 3'];
+    let taxonomyLevels = ['Nhận biết', 'Thông hiểu', 'Vận dụng', 'Vận dụng cao'];
+    let matrixData = {};
+    let currentCell = null;
+    let specificationLibrary = [];
+
+    // Score settings with default values
+    let scoreSettings = {
+        multipleChoice: 0.25,
+        trueFalse: 1,
+        essay: 1.0,
+        percentages: {
+            'Nhận biết': 40,
+            'Thông hiểu': 30,
+            'Vận dụng': 30,
+            'Vận dụng cao': 0, // Added for completeness
+        }
+    };
+
+    // Firebase state
+    let app, db, auth, userId, isAuthReady = false;
+    let appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    let firebaseConfig;
+
+    // Firebase function references - ĐÃ XÓA CÁC DÒNG GÂY LỖI
+    // const { initializeApp } = firebase.app; // Lỗi: firebase is not defined
+    // const { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = firebase.auth; // Lỗi
+    // const { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, serverTimestamp, setLogLevel } = firebase.firestore; // Lỗi
+
+
+    // Initialize app
+    document.addEventListener('DOMContentLoaded', function() {
+        initFirebaseAuth(); // Initialize Firebase
+        loadSpecificationLibrary();
+        renderTopics();
+        renderMatrix();
+        updateSummaryTable();
+        
+        // Event listeners
+        ['multipleChoiceCount', 'trueFalseCount', 'essayCount'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateTotalQuestionsInModal);
+        });
+        ['scoreMultipleChoice', 'scoreTrueFalse', 'scoreEssay'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateScoreCalculationInModal);
+        });
+        ['percentKnowledge', 'percentComprehension', 'percentApplication'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updatePercentageTotalInModal);
+        });
+    });
+
+    // --- Firebase Functions ---
+    async function initFirebaseAuth() {
+        // Cấu hình Firebase do người dùng cung cấp
+        const userFirebaseConfig = {
+          apiKey: "AIzaSyAnI3ACGmUYMxa-Yybu4EOWSrU_hBUtytg",
+          authDomain: "matrixv11.firebaseapp.com",
+          projectId: "matrixv11",
+          storageBucket: "matrixv11.firebasestorage.app",
+          messagingSenderId: "522250262725",
+          appId: "1:522250262725:web:e57252ccdc1a215935f8ac"
+        };
+
+        // Ưu tiên sử dụng config từ môi trường (__firebase_config) nếu có
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+            try {
+                firebaseConfig = JSON.parse(__firebase_config);
+                console.log('Đang sử dụng cấu hình Firebase từ môi trường.');
+            } catch (err) {
+                 console.error('Lỗi phân tích cú pháp cấu hình Firebase từ môi trường, chuyển sang cấu hình do người dùng cung cấp.', err);
+                 firebaseConfig = userFirebaseConfig;
+            }
+        } else {
+             console.log('Đang sử dụng cấu hình Firebase do người dùng cung cấp.');
+            firebaseConfig = userFirebaseConfig;
+        }
+
+        // Tiếp tục khởi tạo Firebase nếu có cấu hình
+        if (firebaseConfig) {
+             try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                setLogLevel('Debug'); // Bật ghi log Firestore
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        isAuthReady = true;
+                        console.log('Firebase đã xác thực. User ID:', userId);
+                        // Kích hoạt các nút Cloud khi đã sẵn sàng
+                        document.getElementById('btn-save-firebase').disabled = false;
+                        document.getElementById('btn-load-firebase').disabled = false;
+                    } else {
+                        // Chưa đăng nhập, thử đăng nhập
+                        console.log('Không có người dùng, đang thử đăng nhập...');
+                        try {
+                            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                                await signInWithCustomToken(auth, __initial_auth_token);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                            // onAuthStateChanged sẽ tự động được gọi lại sau khi đăng nhập thành công
+                        } catch (err) {
+                            console.error('Lỗi xác thực Firebase:', err);
+                            isAuthReady = false;
+                            disableCloudButtons('Lỗi xác thực. Tính năng Cloud bị tắt.');
+                        }
+                    }
+                });
+            } catch (err) {
+                 console.error('Lỗi khởi tạo Firebase:', err);
+                 disableCloudButtons('Lỗi khởi tạo Firebase. Tính năng Cloud bị tắt.');
+            }
+        } else {
+            console.warn('Không tìm thấy cấu hình Firebase. Tính năng Cloud bị tắt.');
+            disableCloudButtons('Không tìm thấy cấu hình. Tính năng Cloud bị tắt.');
+        }
+    }
+    
+    function disableCloudButtons(title) {
+         document.querySelectorAll('#btn-save-firebase, #btn-load-firebase').forEach(btn => {
+            btn.disabled = true;
+            btn.title = title;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+        });
+    }
+
+    function showSaveFirebaseModal() {
+        if (!isAuthReady) {
+            showAlert('Chưa sẵn sàng kết nối Cloud. Vui lòng đợi một lát và thử lại.');
+            return;
+        }
+        document.getElementById('matrixNameInput').value = '';
+        document.getElementById('saveFirebaseModal').classList.remove('hidden');
+        document.getElementById('matrixNameInput').focus();
+    }
+
+    function closeSaveFirebaseModal() {
+        document.getElementById('saveFirebaseModal').classList.add('hidden');
+    }
+
+    async function saveMatrixToFirebase() {
+        if (!isAuthReady || !userId) {
+            showAlert('Chưa kết nối đến máy chủ. Vui lòng thử lại.');
+            return;
+        }
+        const matrixName = document.getElementById('matrixNameInput').value.trim();
+        if (!matrixName) {
+            showAlert('Vui lòng nhập tên ma trận.');
+            return;
+        }
+
+        const saveBtn = document.getElementById('saveFirebaseBtn');
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang lưu...';
+
+        const collectionPath = `artifacts/${appId}/users/${userId}/matrices`;
+        const dataToSave = {
+            name: matrixName,
+            topics: topics,
+            matrixData: matrixData,
+            scoreSettings: scoreSettings,
+            createdAt: serverTimestamp()
+        };
+
+        try {
+            await addDoc(collection(db, collectionPath), dataToSave);
+            closeSaveFirebaseModal();
+            showSuccessMessage('Đã lưu ma trận lên Cloud thành công!');
+        } catch (err) {
+            console.error('Lỗi khi lưu vào Firestore:', err);
+            showAlert(`Lỗi khi lưu: ${err.message}`);
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = 'Lưu';
+        }
+    }
+
+    function closeLoadFirebaseModal() {
+        document.getElementById('loadFirebaseModal').classList.add('hidden');
+    }
+
+    async function openLoadFirebaseModal() {
+        if (!isAuthReady || !userId) {
+            showAlert('Chưa sẵn sàng kết nối Cloud. Vui lòng đợi một lát và thử lại.');
+            return;
+        }
+        const modal = document.getElementById('loadFirebaseModal');
+        const listContainer = document.getElementById('firebaseMatrixList');
+        modal.classList.remove('hidden');
+        listContainer.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin text-2xl text-primary"></i><p class="mt-2">Đang tải danh sách ma trận...</p></div>';
+
+        const collectionPath = `artifacts/${appId}/users/${userId}/matrices`;
+        
+        try {
+            const q = query(collection(db, collectionPath)); // Không dùng orderBy theo hướng dẫn
+            const querySnapshot = await getDocs(q);
+            let matrices = [];
+            querySnapshot.forEach((doc) => {
+                matrices.push({ id: doc.id, ...doc.data() });
+            });
+
+            // Sắp xếp trong bộ nhớ
+            matrices.sort((a, b) => {
+                const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : 0;
+                const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : 0;
+                return dateB - dateA; // Mới nhất trước
+            });
+
+            if (matrices.length === 0) {
+                listContainer.innerHTML = '<p class="text-center text-gray-500 dark:text-gray-400 py-4">Bạn chưa lưu ma trận nào lên Cloud.</p>';
+                return;
+            }
+
+            listContainer.innerHTML = matrices.map(matrix => `
+                <div class="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <div>
+                        <span class="font-medium">${escapeHTML(matrix.name)}</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400 block">
+                            Lưu lúc: ${matrix.createdAt ? new Date(matrix.createdAt.toMillis()).toLocaleString('vi-VN') : 'Không rõ'}
+                        </span>
+                    </div>
+                    <div class="space-x-2 flex-shrink-0">
+                        <button onclick="loadMatrixFromFirebase('${matrix.id}')" class="btn-primary py-1 px-3 text-sm">
+                            <i class="fas fa-folder-open mr-1"></i>Mở
+                        </button>
+                        <button onclick="deleteMatrixFromFirebase('${matrix.id}', '${escapeHTML(matrix.name)}', this)" class="btn-danger py-1 px-3 text-sm">
+                            <i class="fas fa-trash mr-1"></i>Xóa
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+        } catch (err) {
+            console.error('Lỗi khi tải danh sách từ Firestore:', err);
+            listContainer.innerHTML = `<p class="text-center text-red-500 py-4">Lỗi khi tải danh sách: ${err.message}</p>`;
+        }
+    }
+
+    function loadMatrixFromFirebase(docId) {
+        showConfirmDialog('Mở ma trận này sẽ ghi đè toàn bộ dữ liệu hiện tại. Bạn có chắc chắn muốn tiếp tục?', async () => {
+            if (!isAuthReady || !userId) {
+                showAlert('Kết nối bị gián đoạn. Vui lòng thử lại.');
+                return;
+            }
+            const docPath = `artifacts/${appId}/users/${userId}/matrices/${docId}`;
+            try {
+                const docSnap = await getDoc(doc(db, docPath));
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    topics = data.topics || [];
+                    matrixData = data.matrixData || {};
+                    scoreSettings = data.scoreSettings || { multipleChoice: 0.25, trueFalse: 1, essay: 1.0, percentages: { 'Nhận biết': 40, 'Thông hiểu': 30, 'Vận dụng': 30, 'Vận dụng cao': 0 } };
+                    
+                    renderTopics();
+                    renderMatrix();
+                    updateSummaryTable();
+                    closeLoadFirebaseModal();
+                    showSuccessMessage(`Đã tải ma trận "${data.name}" thành công!`);
+                } else {
+                    showAlert('Không tìm thấy ma trận này.');
+                }
+            } catch (err) {
+                console.error('Lỗi khi tải ma trận:', err);
+                showAlert(`Lỗi khi tải ma trận: ${err.message}`);
+            }
+        });
+    }
+
+    async function deleteMatrixFromFirebase(docId, matrixName, buttonElement) {
+         showConfirmDialog(`Bạn có chắc chắn muốn xóa ma trận "${matrixName}"? Hành động này không thể hoàn tác.`, async () => {
+            if (!isAuthReady || !userId) {
+                showAlert('Kết nối bị gián đoạn. Vui lòng thử lại.');
+                return;
+            }
+            const docPath = `artifacts/${appId}/users/${userId}/matrices/${docId}`;
+            
+            // Vô hiệu hóa nút
+            buttonElement.disabled = true;
+            buttonElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+            try {
+                await deleteDoc(doc(db, docPath));
+                // Xóa phần tử khỏi DOM
+                buttonElement.closest('.flex.justify-between').remove();
+                showSuccessMessage(`Đã xóa ma trận "${matrixName}".`);
+            } catch (err) {
+                console.error('Lỗi khi xóa ma trận:', err);
+                showAlert(`Lỗi khi xóa: ${err.message}`);
+                // Kích hoạt lại nút nếu lỗi
+                buttonElement.disabled = false;
+                buttonElement.innerHTML = '<i class="fas fa-trash mr-1"></i>Xóa';
+            }
+        });
+    }
+    // --- End Firebase Functions ---
+
+
+    // Topic management
+    function showTopicModal() {
+        document.getElementById('topicModal').classList.remove('hidden');
+        document.getElementById('topicNameInput').focus();
+    }
+
+    function closeTopicModal() {
+        document.getElementById('topicModal').classList.add('hidden');
+        document.getElementById('topicNameInput').value = '';
+    }
+
+    function addTopic() {
+        const input = document.getElementById('topicNameInput');
+        const topicName = input.value.trim();
+        if (!topicName) {
+            showAlert('Vui lòng nhập tên chủ đề');
+            return;
+        }
+        if (topics.includes(topicName)) {
+            showAlert('Chủ đề đã tồn tại');
+            return;
+        }
+        topics.push(topicName);
+        renderTopics();
+        renderMatrix();
+        updateSummaryTable();
+        closeTopicModal();
+        showSuccessMessage('Đã thêm chủ đề thành công!');
+    }
+
+    function removeTopic(index) {
+        showConfirmDialog('Bạn có chắc chắn muốn xóa chủ đề này?', () => {
+            const topicName = topics[index];
+            topics.splice(index, 1);
+            Object.keys(matrixData).forEach(key => {
+                if (key.startsWith(topicName + '_')) {
+                    delete matrixData[key];
+                }
+            });
+            renderTopics();
+            renderMatrix();
+            updateSummaryTable();
+            showSuccessMessage('Đã xóa chủ đề thành công!');
+        });
+    }
+
+    function renderTopics() {
+        const container = document.getElementById('topicsList');
+        if (topics.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 dark:text-gray-400">Chưa có chủ đề nào. Nhấn "Thêm Chủ đề" để bắt đầu.</p>';
+            return;
+        }
+        container.innerHTML = topics.map((topic, index) => `
+    <div class="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-3 py-1 rounded-full flex items-center space-x-2">
+    <span>${escapeHTML(topic)}</span>
+    <button onclick="removeTopic(${index})" class="text-blue-600 dark:text-blue-400 hover:text-red-500">
+    <i class="fas fa-times text-sm"></i>
+    </button>
+    </div>
+    `).join('');
+    }
+
+    // Matrix management
+    function renderMatrix() {
+        const container = document.getElementById('matrixGrid');
+        if (topics.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 dark:text-gray-400 col-span-full text-center py-8">Thêm chủ đề để bắt đầu tạo ma trận</p>';
+            return;
+        }
+        const cols = taxonomyLevels.length + 1;
+        container.style.gridTemplateColumns = `repeat(${cols}, minmax(120px, 1fr))`;
+        let html = '';
+        html += '<div class="font-bold text-center p-3 bg-gray-100 dark:bg-gray-700 rounded">Chủ đề / Mức độ</div>';
+        taxonomyLevels.forEach(level => {
+            html += `<div class="font-bold text-center p-3 bg-gray-100 dark:bg-gray-700 rounded">${level}</div>`;
+        });
+        topics.forEach(topic => {
+            html += `<div class="font-medium p-3 bg-gray-50 dark:bg-gray-600 rounded flex items-center justify-center text-center">${escapeHTML(topic)}</div>`;
+            taxonomyLevels.forEach(level => {
+                const cellKey = `${topic}_${level}`;
+                const cellData = matrixData[cellKey] || { count: 0, notes: '' };
+                const isFilled = cellData.count > 0;
+                const questionTypes = [];
+                if (cellData.multipleChoice > 0) questionTypes.push(`TN: ${cellData.multipleChoice}`);
+                if (cellData.trueFalse > 0) questionTypes.push(`Đ/S: ${cellData.trueFalse}`);
+                if (cellData.essay > 0) questionTypes.push(`TL: ${cellData.essay}`);
+                html += `
+            <div class="matrix-cell ${isFilled ? 'filled' : ''} p-2 rounded cursor-pointer text-center flex flex-col justify-center"
+                 onclick="openCellModal('${topic}', '${level}')">
+                <div class="font-bold text-lg mb-1">${cellData.count || 0}</div>
+                ${questionTypes.length > 0 ?
+                    `<div class="text-xs space-y-1">${questionTypes.map(type => `<div class="bg-white dark:bg-gray-600 rounded px-1 py-0.5">${type}</div>`).join('')}</div>` : ''
+                }
+                ${cellData.notes ? '<div class="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate" title="Có ghi chú">📝</div>' : ''}
+            </div>
+            `;
+            });
+        });
+        container.innerHTML = html;
+    }
+
+    function openCellModal(topic, level) {
+        currentCell = { topic, level };
+        const cellKey = `${topic}_${level}`;
+        const cellData = matrixData[cellKey] || { multipleChoice: 0, trueFalse: 0, essay: 0, notes: '' };
+        document.getElementById('cellModalTitle').textContent = `${topic} - ${level}`;
+        document.getElementById('multipleChoiceCount').value = cellData.multipleChoice || 0;
+        document.getElementById('trueFalseCount').value = cellData.trueFalse || 0;
+        document.getElementById('essayCount').value = cellData.essay || 0;
+        document.getElementById('cellNotes').value = cellData.notes || '';
+        document.getElementById('questionPosition').value = cellData.position || '';
+        document.getElementById('cellModal').classList.remove('hidden');
+        document.getElementById('multipleChoiceCount').focus();
+        updateTotalQuestionsInModal();
+    }
+
+    function closeCellModal() {
+        document.getElementById('cellModal').classList.add('hidden');
+        currentCell = null;
+    }
+
+    function saveCellData() {
+        if (!currentCell) return;
+        const newData = {
+            multipleChoice: parseInt(document.getElementById('multipleChoiceCount').value) || 0,
+            trueFalse: parseInt(document.getElementById('trueFalseCount').value) || 0,
+            essay: parseInt(document.getElementById('essayCount').value) || 0,
+            notes: document.getElementById('cellNotes').value.trim(),
+            position: document.getElementById('questionPosition').value.trim(),
+        };
+        newData.count = newData.multipleChoice + newData.trueFalse + newData.essay;
+        const cellKey = `${currentCell.topic}_${currentCell.level}`;
+        const performSave = () => {
+            if (newData.count === 0 && !newData.notes && !newData.position) {
+                delete matrixData[cellKey];
+            } else {
+                matrixData[cellKey] = newData;
+            }
+            renderMatrix();
+            updateSummaryTable();
+            closeCellModal();
+            showSuccessMessage('Đã lưu dữ liệu ô ma trận!');
+        };
+        const tempMatrixData = JSON.parse(JSON.stringify(matrixData));
+        if (newData.count === 0) {
+            delete tempMatrixData[cellKey];
+        } else {
+            tempMatrixData[cellKey] = {
+                multipleChoice: newData.multipleChoice,
+                trueFalse: newData.trueFalse,
+                essay: newData.essay
+            };
+        }
+        const { grandTotalScore: projectedTotalScore, levelScores: projectedLevelScores } = calculateScores(tempMatrixData, scoreSettings);
+        let deviationMessage = '';
+        const TOLERANCE = 10.0;
+        if (projectedTotalScore > 0) {
+            taxonomyLevels.forEach(level => {
+                const projectedPercentage = (projectedLevelScores[level] / projectedTotalScore) * 100;
+                const targetPercentage = scoreSettings.percentages[level];
+                if (Math.abs(projectedPercentage - targetPercentage) > TOLERANCE) {
+                    deviationMessage += `\n- Mức độ "${level}" sẽ là ${projectedPercentage.toFixed(1)}% (mục tiêu là ${targetPercentage}%).`;
+                }
+            });
+        }
+        if (deviationMessage) {
+            const fullMessage = `Lưu thay đổi này sẽ khiến tỉ lệ điểm khác biệt đáng kể so với mục tiêu:` + deviationMessage + `\n\nBạn có muốn tiếp tục lưu không?`;
+            showConfirmDialog(fullMessage, performSave);
+        } else {
+            performSave();
+        }
+    }
+    
+    function calculateScores(data, settings) {
+        const levelScores = {};
+        taxonomyLevels.forEach(level => levelScores[level] = 0);
+        topics.forEach(topic => {
+            taxonomyLevels.forEach(level => {
+                const cellKey = `${topic}_${level}`;
+                const cellData = data[cellKey];
+                if (cellData) {
+                    let cellScore = 0;
+                    cellScore += (cellData.multipleChoice || 0) * settings.multipleChoice;
+                    cellScore += (cellData.trueFalse || 0) * settings.trueFalse;
+                    cellScore += (cellData.essay || 0) * settings.essay;
+                    levelScores[level] += cellScore;
+                }
+            });
+        });
+        const grandTotalScore = Object.values(levelScores).reduce((sum, score) => sum + score, 0);
+        return { grandTotalScore, levelScores };
+    }
+
+    function updateSummaryTable() {
+        const tbody = document.getElementById('summaryTableBody');
+        let html = '';
+        document.getElementById('knowledgePercent').textContent = `(${scoreSettings.percentages['Nhận biết']}%)`;
+        document.getElementById('comprehensionPercent').textContent = `(${scoreSettings.percentages['Thông hiểu']}%)`;
+        document.getElementById('applicationPercent').textContent = `(${scoreSettings.percentages['Vận dụng']}%)`;
+        topics.forEach(topic => {
+            const counts = taxonomyLevels.map(level => {
+                const cellKey = `${topic}_${level}`;
+                return matrixData[cellKey]?.count || 0;
+            });
+            const total = counts.reduce((sum, count) => sum + count, 0);
+            let topicScore = 0;
+            taxonomyLevels.forEach(level => {
+                const cellKey = `${topic}_${level}`;
+                const cellData = matrixData[cellKey];
+                if (cellData) {
+                    topicScore += (cellData.multipleChoice || 0) * scoreSettings.multipleChoice;
+                    topicScore += (cellData.trueFalse || 0) * scoreSettings.trueFalse;
+                    topicScore += (cellData.essay || 0) * scoreSettings.essay;
+                }
+            });
+            html += `
+        <tr>
+            <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 font-medium">${escapeHTML(topic)}</td>
+            ${counts.map(count => `<td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center">${count}</td>`).join('')}
+            <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center font-bold">${total}</td>
+            <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center font-bold text-blue-600 dark:text-blue-400">${topicScore.toFixed(2)}</td>
+        </tr>
+        `;
+        });
+        const totalCounts = taxonomyLevels.map(level => {
+            return topics.reduce((sum, topic) => {
+                const cellKey = `${topic}_${level}`;
+                return sum + (matrixData[cellKey]?.count || 0);
+            }, 0);
+        });
+        const { grandTotalScore, levelScores } = calculateScores(matrixData, scoreSettings);
+        const levelScoresArray = taxonomyLevels.map(level => levelScores[level]);
+        const grandTotalQuestions = totalCounts.reduce((sum, count) => sum + count, 0);
+        const actualScorePercentages = levelScoresArray.map(score => {
+            return grandTotalScore > 0 ? ((score / grandTotalScore) * 100).toFixed(1) : 0;
+        });
+        html += `
+        <tr class="bg-gray-100 dark:bg-gray-700 font-bold">
+            <td class="border border-gray-300 dark:border-gray-600 px-4 py-2">Tổng cộng</td>
+            ${totalCounts.map((count, index) => `
+                <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center">
+                    ${count} câu<br>
+                    <span class="font-normal">${levelScoresArray[index].toFixed(2)} điểm</span><br>
+                    <span class="text-xs text-green-600 dark:text-green-400 font-bold">(${actualScorePercentages[index]}%)</span>
+                </td>
+            `).join('')}
+            <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center">${grandTotalQuestions}</td>
+            <td class="border border-gray-300 dark:border-gray-600 px-4 py-2 text-center text-green-600 dark:text-green-400">${grandTotalScore.toFixed(2)}</td>
+        </tr>
+        `;
+        tbody.innerHTML = html;
+    }
+
+    // --- Specification Library Functions ---
+    function openSpecificationModal() {
+        document.getElementById('specificationModal').classList.remove('hidden');
+        renderSpecificationLibrary();
+    }
+
+    function closeSpecificationModal() {
+        document.getElementById('specificationModal').classList.add('hidden');
+    }
+
+    function loadSpecificationLibrary() {
+        const savedLibrary = localStorage.getItem('specificationLibrary');
+        if (savedLibrary) {
+            specificationLibrary = JSON.parse(savedLibrary);
+        }
+    }
+
+    function saveSpecificationLibrary() {
+        localStorage.setItem('specificationLibrary', JSON.stringify(specificationLibrary));
+    }
+
+    function importFromDocx() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.docx';
+        input.onchange = e => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const arrayBuffer = event.target.result;
+                mammoth.extractRawText({ arrayBuffer: arrayBuffer })
+                    .then(result => {
+                        const text = result.value;
+                        const lines = text.split('\n').filter(line => line.trim() !== '');
+                        let newItemsCount = 0;
+                        lines.forEach(line => {
+                            const trimmedLine = line.trim();
+                            if (trimmedLine && !specificationLibrary.includes(trimmedLine)) {
+                                specificationLibrary.push(trimmedLine);
+                                newItemsCount++;
+                            }
+                        });
+                        
+                        saveSpecificationLibrary();
+                        renderSpecificationLibrary();
+                        showSuccessMessage(`Đã nhập và thêm mới ${newItemsCount} mục từ file DOCX.`);
+                    })
+                    .catch(err => {
+                        showAlert('Lỗi khi đọc file DOCX: ' + err.message);
+                        console.error(err);
+                    });
+            };
+            reader.readAsArrayBuffer(file);
+        };
+        input.click();
+    }
+
+    function renderSpecificationLibrary(filter = '') {
+        const list = document.getElementById('specificationList');
+        const filteredLibrary = specificationLibrary.filter(item => 
+            item.toLowerCase().includes(filter.toLowerCase())
+        );
+
+        if (filteredLibrary.length === 0) {
+            list.innerHTML = `<li class="text-center text-gray-500 dark:text-gray-400 py-4">Thư viện trống. Hãy nhập từ file DOCX.</li>`;
+            return;
+        }
+
+        list.innerHTML = filteredLibrary.map((item) => {
+            const originalIndex = specificationLibrary.findIndex(orig => orig === item);
+            return `
+                <li class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex items-center justify-between gap-2">
+                    <span class="flex-grow text-sm">${escapeHTML(item)}</span>
+                    <div class="flex-shrink-0 flex gap-2">
+                        <button onclick="selectSpecification(${originalIndex})" class="text-green-500 hover:text-green-700" title="Chọn">
+                            <i class="fas fa-check-circle"></i>
+                        </button>
+                        <button onclick="deleteSpecification(${originalIndex})" class="text-red-500 hover:text-red-700" title="Xóa">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                </li>
+            `;
+        }).join('');
+    }
+
+    function selectSpecification(index) {
+        const notesTextarea = document.getElementById('cellNotes');
+        const selectedItem = specificationLibrary[index];
+        // Append with a new line if there's existing text
+        if (notesTextarea.value.trim().length > 0) {
+            notesTextarea.value += '\n' + selectedItem;
+        } else {
+            notesTextarea.value = selectedItem;
+        }
+        closeSpecificationModal();
+    }
+
+    function deleteSpecification(index) {
+        showConfirmDialog(`Bạn có chắc muốn xóa yêu cầu "${specificationLibrary[index].substring(0, 30)}..."?`, () => {
+            specificationLibrary.splice(index, 1);
+            saveSpecificationLibrary();
+            renderSpecificationLibrary();
+        });
+    }
+
+    function searchSpecifications() {
+        const searchTerm = document.getElementById('specificationSearch').value;
+        renderSpecificationLibrary(searchTerm);
+    }
+    
+    function clearLibrary() {
+        showConfirmDialog('Bạn có chắc chắn muốn xóa toàn bộ thư viện đặc tả không? Hành động này không thể hoàn tác.', () => {
+            specificationLibrary = [];
+            saveSpecificationLibrary();
+            renderSpecificationLibrary();
+            showSuccessMessage('Đã xóa toàn bộ thư viện.');
+        });
+    }
+    
+    // AI Integration
+    async function generateAITest() {
+        const totalQuestions = Object.values(matrixData).reduce((sum, cell) => sum + (cell.count || 0), 0);
+        if (totalQuestions === 0) {
+            showAlert('Vui lòng thêm ít nhất một câu hỏi vào ma trận trước khi tạo đề thi bằng AI');
+            return;
+        }
+        document.getElementById('aiModal').classList.remove('hidden');
+        document.getElementById('aiLoadingState').classList.remove('hidden');
+        document.getElementById('aiContent').classList.add('hidden');
+        const matrixSummary = generateMatrixSummary();
+        const apiKey = "AIzaSyCaUvSJx7Zn_qmYXdqlynADWR9YpcaxmSs";
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+        const prompt = `Làm ơn tạo một đề kiểm tra hoàn chỉnh dựa trên ma trận và các thông tin chi tiết dưới đây:
+
+	${matrixSummary}
+
+	Yêu cầu cụ thể:
+	1.  **Số lượng và loại câu hỏi:** Tạo chính xác số lượng câu hỏi cho mỗi loại (Trắc nghiệm 4 đáp án, Đúng/Sai, Tự luận) theo từng chủ đề và mức độ đã quy định trong ma trận.
+	2.  **Mức độ nhận thức:** Câu hỏi phải phản ánh đúng mức độ yêu cầu (Nhận biết, Thông hiểu, Vận dụng).
+    	* **Nhận biết:** Câu hỏi yêu cầu nhớ lại, nhận dạng thông tin.
+    	* **Thông hiểu:** Câu hỏi yêu cầu giải thích, so sánh, tóm tắt.
+    	* **Vận dụng:** Câu hỏi yêu cầu áp dụng kiến thức vào tình huống mới, giải quyết vấn đề.
+	3.  **Nội dung:** Bám sát vào tên chủ đề và các ghi chú (nếu có) để tạo câu hỏi phù hợp.
+	4.  **Đáp án:** Cung cấp đáp án đầy đủ và chi tiết ngay sau phần đề thi. Đối với câu trắc nghiệm, chỉ rõ đáp án đúng. Đối với tự luận, đưa ra gợi ý trả lời hoặc dàn ý chi tiết.
+	5.  **Định dạng:** Trình bày đề thi và đáp án một cách chuyên nghiệp, sạch sẽ bằng cách sử dụng Markdown. Phân chia rõ ràng các phần: "ĐỀ KIỂM TRA" và "ĐÁP ÁN VÀ HƯỚNG DẪN CHẤM".
+
+	Hãy bắt đầu tạo đề thi.`;
+        const payload = { contents: [{ parts: [{ text: prompt }] }] };
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error.message || `Lỗi API: ${response.status}`);
+            }
+            const result = await response.json();
+            const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (generatedText) {
+                document.getElementById('aiLoadingState').classList.add('hidden');
+                document.getElementById('aiContent').classList.remove('hidden');
+                document.getElementById('aiGeneratedTest').innerHTML = marked.parse(generatedText);
+            } else {
+                throw new Error("Không nhận được nội dung từ AI.");
+            }
+        } catch (err) {
+            console.error('Lỗi gọi API Gemini:', err);
+            document.getElementById('aiLoadingState').classList.add('hidden');
+            document.getElementById('aiContent').classList.remove('hidden');
+            document.getElementById('aiGeneratedTest').innerHTML = `<div class="p-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg"><strong>Lỗi:</strong> ${err.message}. Vui lòng thử lại.</div>`;
+        }
+    }
+
+    function generateMatrixSummary() {
+        let summary = "MA TRẬN ĐỀ KIỂM TRA\n\n";
+        summary += `**I. THIẾT LẬP ĐIỂM SỐ:**\n`;
+        summary += `- Trắc nghiệm 4 đáp án: ${scoreSettings.multipleChoice} điểm/câu\n`;
+        summary += `- Đúng/Sai (4 ý): ${scoreSettings.trueFalse} điểm/câu\n`;
+        summary += `- Tự luận: ${scoreSettings.essay} điểm/câu\n\n`;
+        summary += `**II. TỈ LỆ MỨC ĐỘ MONG MUỐN:**\n`;
+        taxonomyLevels.forEach(level => {
+            if(scoreSettings.percentages[level]) {
+                summary += `- ${level}: ${scoreSettings.percentages[level]}%\n`;
+            }
+        });
+        summary += `\n**III. MA TRẬN CHI TIẾT:**\n\n`;
+        topics.forEach(topic => {
+            summary += `**Chủ đề: ${topic}**\n`;
+            taxonomyLevels.forEach(level => {
+                const cellKey = `${topic}_${level}`;
+                const cellData = matrixData[cellKey];
+                if (cellData && cellData.count > 0) {
+                    summary += `- **${level}:**\n`;
+                    if (cellData.multipleChoice > 0) summary += `  - Trắc nghiệm 4 đáp án: ${cellData.multipleChoice} câu\n`;
+                    if (cellData.trueFalse > 0) summary += `  - Đúng/Sai: ${cellData.trueFalse} câu (mỗi câu 4 ý)\n`;
+                    if (cellData.essay > 0) summary += `  - Tự luận: ${cellData.essay} câu\n`;
+                    if (cellData.position) summary += `  - Vị trí gợi ý trong đề: ${cellData.position}\n`;
+                    if (cellData.notes) summary += `  - Ghi chú/Yêu cầu cần đạt: ${cellData.notes}\n`;
+                }
+            });
+            summary += `\n`;
+        });
+        return summary;
+    }
+
+    function regenerateTest() { generateAITest(); }
+    function closeAIModal() { document.getElementById('aiModal').classList.add('hidden'); }
+
+    // Export/Import functions
+    function exportMatrix() {
+        const data = { topics, matrixData, scoreSettings, timestamp: new Date().toISOString() };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ma-tran-de-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showSuccessMessage('Đã xuất ma trận thành công!');
+    }
+
+    function importMatrix() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.topics && data.matrixData && data.scoreSettings) {
+                        topics = data.topics;
+                        matrixData = data.matrixData;
+                        scoreSettings = data.scoreSettings;
+                        renderTopics();
+                        renderMatrix();
+                        updateSummaryTable();
+                        showSuccessMessage('Đã nhập ma trận thành công!');
+                    } else { showAlert('File không đúng định dạng.'); }
+                } catch (err) { showAlert('Lỗi đọc file: ' + err.message); }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    }
+
+    function exportTest() {
+        const testContent = document.getElementById('aiGeneratedTest').innerHTML;
+        const blob = new Blob([testContent], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `de-thi-${new Date().toISOString().split('T')[0]}.html`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showSuccessMessage('Đã xuất đề thi thành công!');
+    }
+    
+    function exportExcel() {
+        if (topics.length === 0) {
+            showAlert('Chưa có dữ liệu ma trận để xuất file Excel.');
+            return;
+        }
+
+        const wb = XLSX.utils.book_new();
+
+        // --- Sheet 1: MA TRẬN ---
+        const matrix_ws_data = [
+            ["TT", "Chương/ chủ đề", "Nội dung/đơn vị kiến thức", "Mức độ đánh giá", null, null, null, null, null, null, null, null, null, "Tổng", "Tỉ lệ % điểm"],
+            [null, null, null, "TNKQ", null, null, null, null, "Tự luận", null, null, null, null, null, null],
+            [null, null, null, "Nhiều lựa chọn", null, null, "Đúng - Sai", null, null, null, null, null, null, null, null],
+            [null, null, null, "Biết", "Hiểu", "VD", "Biết", "Hiểu", "VD", "Biết", "Hiểu", "VD", null, null, null]
+        ];
+
+        let grandTotalScore = 0;
+        const levelTotals = {
+            mc: { nb: 0, th: 0, vd: 0 },
+            tf: { nb: 0, th: 0, vd: 0 },
+            essay: { nb: 0, th: 0, vd: 0 }
+        };
+        const levelScoreTotals = { nb: 0, th: 0, vd: 0 };
+
+
+        topics.forEach((topic, index) => {
+            const row = Array(15).fill(null);
+            row[0] = index + 1;
+            row[1] = topic;
+            let topicTotalScore = 0;
+            let topicTotalQuestions = 0;
+
+            taxonomyLevels.forEach(level => {
+                const cellKey = `${topic}_${level}`;
+                const cellData = matrixData[cellKey];
+                if (cellData) {
+                    const mc = cellData.multipleChoice || 0;
+                    const tf = cellData.trueFalse || 0;
+                    const essay = cellData.essay || 0;
+                    
+                    topicTotalQuestions += (mc + tf + essay);
+                    const cellScore = mc * scoreSettings.multipleChoice + tf * scoreSettings.trueFalse + essay * scoreSettings.essay;
+                    topicTotalScore += cellScore;
+                    
+                    if (level === 'Nhận biết') {
+                        row[3] = (row[3] || 0) + mc;
+                        row[6] = (row[6] || 0) + tf;
+                        row[9] = (row[9] || 0) + essay;
+                        levelTotals.mc.nb += mc; levelTotals.tf.nb += tf; levelTotals.essay.nb += essay;
+                        levelScoreTotals.nb += cellScore;
+                    } else if (level === 'Thông hiểu') {
+                        row[4] = (row[4] || 0) + mc;
+                        row[7] = (row[7] || 0) + tf;
+                        row[10] = (row[10] || 0) + essay;
+                        levelTotals.mc.th += mc; levelTotals.tf.th += tf; levelTotals.essay.th += essay;
+                        levelScoreTotals.th += cellScore;
+                    } else if (level === 'Vận dụng' || level === 'Vận dụng cao') {
+                        row[5] = (row[5] || 0) + mc;
+                        row[8] = (row[8] || 0) + tf;
+                        row[11] = (row[11] || 0) + essay;
+                        levelTotals.mc.vd += mc; levelTotals.tf.vd += tf; levelTotals.essay.vd += essay;
+                        levelScoreTotals.vd += cellScore;
+                    }
+                }
+            });
+            row[13] = `${topicTotalQuestions} câu\n${topicTotalScore.toFixed(2)} điểm`;
+            grandTotalScore += topicTotalScore;
+            matrix_ws_data.push(row);
+        });
+
+        // Calculate percentages for each topic
+        matrix_ws_data.slice(4).forEach(row => {
+            const topicScore = parseFloat(row[13].split('\n')[1]);
+            row[14] = grandTotalScore > 0 ? ((topicScore / grandTotalScore) * 100).toFixed(1) + '%' : '0%';
+        });
+
+
+        // Total Row
+        const totalRow = Array(15).fill(null);
+        totalRow[1] = "Tổng số câu";
+        totalRow[3] = levelTotals.mc.nb; totalRow[4] = levelTotals.mc.th; totalRow[5] = levelTotals.mc.vd;
+        totalRow[6] = levelTotals.tf.nb; totalRow[7] = levelTotals.tf.th; totalRow[8] = levelTotals.tf.vd;
+        totalRow[9] = levelTotals.essay.nb; totalRow[10] = levelTotals.essay.th; totalRow[11] = levelTotals.essay.vd;
+        const totalQ = Object.values(levelTotals).flatMap(o => Object.values(o)).reduce((a,b) => a+b, 0);
+        totalRow[13] = totalQ;
+        matrix_ws_data.push(totalRow);
+
+        const totalScoreRow = Array(15).fill(null);
+        totalScoreRow[1] = "Tổng số điểm";
+        totalScoreRow[13] = grandTotalScore.toFixed(2);
+        matrix_ws_data.push(totalScoreRow);
+
+        const percentageRow = Array(15).fill(null);
+        percentageRow[1] = "Tỉ lệ %";
+        percentageRow[13] = "100%";
+        matrix_ws_data.push(percentageRow);
+
+
+        const matrix_ws = XLSX.utils.aoa_to_sheet(matrix_ws_data, { cellStyles: true });
+        matrix_ws['!merges'] = [
+            { s: { r: 0, c: 0 }, e: { r: 3, c: 0 } }, // TT
+            { s: { r: 0, c: 1 }, e: { r: 3, c: 1 } }, // Chủ đề
+            { s: { r: 0, c: 2 }, e: { r: 3, c: 2 } }, // Nội dung
+            { s: { r: 0, c: 3 }, e: { r: 0, c: 12 } },// Mức độ đánh giá
+            { s: { r: 0, c: 13 }, e: { r: 3, c: 13 } },// Tổng
+            { s: { r: 0, c: 14 }, e: { r: 3, c: 14 } },// Tỉ lệ
+            { s: { r: 1, c: 3 }, e: { r: 1, c: 8 } }, // TNKQ
+            { s: { r: 1, c: 9 }, e: { r: 1, c: 11 } }, // Tự luận
+            { s: { r: 2, c: 3 }, e: { r: 2, c: 5 } }, // Nhiều lựa chọn
+            { s: { r: 2, c: 6 }, e: { r: 2, c: 8 } }, // Đúng sai
+            { s: { r: 2, c: 9 }, e: { r: 2, c: 11 } }, // Tự luận (dòng 3) - merged
+        ];
+        XLSX.utils.book_append_sheet(wb, matrix_ws, "MA TRẬN");
+
+
+        // --- Sheet 2: BẢNG ĐẶC TẢ ---
+        const spec_ws_data = [
+            ["TT", "Chương/ chủ đề", "Nội dung/ đơn vị kiến thức", "Yêu cầu cần đạt", "Câu", "Số câu hỏi ở các mức độ đánh giá", null, null, null, null, null, null, null, null],
+            [null, null, null, null, null, "TNKQ", null, null, null, null, "Tự luận", null, null, null],
+            [null, null, null, null, null, "Nhiều lựa chọn", null, null, "Đúng - Sai", null, null, null, null, null],
+            [null, null, null, null, null, "Biết", "Hiểu", "VD", "Biết", "Hiểu", "VD", "Biết", "Hiểu", "VD"]
+        ];
+
+        let specCount = 1;
+        topics.forEach(topic => {
+            taxonomyLevels.forEach(level => {
+                const cellKey = `${topic}_${level}`;
+                const cellData = matrixData[cellKey];
+                
+                if (cellData && cellData.count > 0 && cellData.notes) {
+                    const notesArray = cellData.notes.split('\n').filter(n => n.trim() !== '');
+                    notesArray.forEach(note => {
+                        const row = Array(14).fill(null);
+                        row[0] = specCount++;
+                        row[1] = topic;
+                        // row[2] is for content, can be filled later
+                        row[3] = note;
+                        row[4] = cellData.position || "";
+
+                        let mc = cellData.multipleChoice || 0;
+                        let tf = cellData.trueFalse || 0;
+                        let essay = cellData.essay || 0;
+
+                        if(notesArray.length > 1) {
+                            mc = ''; tf = ''; essay = ''; // Avoid duplicating numbers if multiple notes in one cell
+                        }
+
+                        if (level === 'Nhận biết') {
+                            row[5] = mc; row[8] = tf; row[11] = essay;
+                        } else if (level === 'Thông hiểu') {
+                            row[6] = mc; row[9] = tf; row[12] = essay;
+                        } else if (level === 'Vận dụng' || level === 'Vận dụng cao') {
+                            row[7] = mc; row[10] = tf; row[13] = essay;
+                        }
+                        spec_ws_data.push(row);
+                    });
+                }
+            });
+        });
+
+        const spec_ws = XLSX.utils.aoa_to_sheet(spec_ws_data);
+        spec_ws['!merges'] = [
+            { s: { r: 0, c: 0 }, e: { r: 3, c: 0 } }, // TT
+            { s: { r: 0, c: 1 }, e: { r: 3, c: 1 } }, // Chủ đề
+            { s: { r: 0, c: 2 }, e: { r: 3, c: 2 } }, // Nội dung
+            { s: { r: 0, c: 3 }, e: { r: 3, c: 3 } }, // Yêu cầu
+            { s: { r: 0, c: 4 }, e: { r: 3, c: 4 } }, // Câu
+            { s: { r: 0, c: 5 }, e: { r: 0, c: 13 } },// Mức độ đánh giá
+            { s: { r: 1, c: 5 }, e: { r: 1, c: 10 } },// TNKQ
+            { s: { r: 1, c: 11}, e: { r: 1, c: 13 } },// Tự luận
+            { s: { r: 2, c: 5 }, e: { r: 2, c: 7 } }, // Nhiều lựa chọn
+            { s: { r: 2, c: 8 }, e: { r: 2, c: 10 } },// Đúng Sai
+            { s: { r: 2, c: 11}, e: { r: 2, c: 13 } },// Tự luận (dòng 3)
+        ];
+        XLSX.utils.book_append_sheet(wb, spec_ws, "BẢNG ĐẶC TẢ");
+
+        XLSX.writeFile(wb, `MaTranVaDacTa_${new Date().toISOString().split('T')[0]}.xlsx`);
+        showSuccessMessage('Đã xuất file Excel thành công theo mẫu DOCX!');
+    }
+
+    function clearAll() {
+        showConfirmDialog('Bạn có chắc chắn muốn xóa tất cả dữ liệu?', () => {
+            topics = [];
+            matrixData = {};
+            renderTopics();
+            renderMatrix();
+            updateSummaryTable();
+            showSuccessMessage('Đã xóa tất cả dữ liệu!');
+        });
+    }
+
+    // Utility functions
+    function showAlert(message) {
+        // Xóa modal cũ nếu có
+        const oldModal = document.getElementById('alertModal');
+        if (oldModal) oldModal.remove();
+        
+        const modal = document.createElement('div');
+        modal.id = 'alertModal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]';
+        modal.innerHTML = `<div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full mx-4"><h3 class="text-lg font-bold mb-4">Thông báo</h3><p>${message}</p><div class="flex justify-end mt-4"><button onclick="this.closest('.fixed').remove()" class="btn-primary">Đóng</button></div></div>`;
+        document.body.appendChild(modal);
+    }
+
+    function showConfirmDialog(message, onConfirm) {
+        // Xóa modal cũ nếu có
+        const oldModal = document.getElementById('confirmModal');
+        if (oldModal) oldModal.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'confirmModal';
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]';
+        modal.innerHTML = `<div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full mx-4"><h3 class="text-lg font-bold mb-4">Xác nhận</h3><p class="whitespace-pre-line">${message}</p><div class="flex justify-end mt-4 space-x-2"><button class="btn-outline" onclick="this.closest('.fixed').remove()">Hủy</button><button id="confirmBtn" class="btn-danger">Xác nhận</button></div></div>`;
+        document.body.appendChild(modal);
+        document.getElementById('confirmBtn').onclick = () => {
+            modal.remove();
+            onConfirm();
+        };
+    }
+
+    function showSuccessMessage(message) {
+        document.getElementById('successMessage').textContent = message;
+        document.getElementById('successModal').classList.remove('hidden');
+    }
+
+    function closeSuccessModal() {
+        document.getElementById('successModal').classList.add('hidden');
+    }
+
+    function updateTotalQuestionsInModal() {
+        const mc = parseInt(document.getElementById('multipleChoiceCount').value) || 0;
+        const tf = parseInt(document.getElementById('trueFalseCount').value) || 0;
+        const essay = parseInt(document.getElementById('essayCount').value) || 0;
+        document.getElementById('totalQuestions').textContent = mc + tf + essay;
+        document.getElementById('totalScore').textContent = ((mc * scoreSettings.multipleChoice) + (tf * scoreSettings.trueFalse) + (essay * scoreSettings.essay)).toFixed(2);
+    }
+
+    // Score Settings Modal Functions
+    function showScoreModal() {
+        document.getElementById('scoreMultipleChoice').value = scoreSettings.multipleChoice;
+        document.getElementById('scoreTrueFalse').value = scoreSettings.trueFalse;
+        document.getElementById('scoreEssay').value = scoreSettings.essay;
+        document.getElementById('percentKnowledge').value = scoreSettings.percentages['Nhận biết'];
+        document.getElementById('percentComprehension').value = scoreSettings.percentages['Thông hiểu'];
+        document.getElementById('percentApplication').value = scoreSettings.percentages['Vận dụng'];
+        document.getElementById('scoreModal').classList.remove('hidden');
+        updateScoreCalculationInModal();
+        updatePercentageTotalInModal();
+    }
+
+    function closeScoreModal() {
+        document.getElementById('scoreModal').classList.add('hidden');
+    }
+
+    function saveScoreSettings() {
+        const pK = parseInt(document.getElementById('percentKnowledge').value) || 0;
+        const pC = parseInt(document.getElementById('percentComprehension').value) || 0;
+        const pA = parseInt(document.getElementById('percentApplication').value) || 0;
+        if (pK + pC + pA !== 100) {
+            showAlert('Tổng tỉ lệ các mức độ phải bằng 100%');
+            return;
+        }
+        scoreSettings.multipleChoice = parseFloat(document.getElementById('scoreMultipleChoice').value) || 0.25;
+        scoreSettings.trueFalse = parseFloat(document.getElementById('scoreTrueFalse').value) || 1;
+        scoreSettings.essay = parseFloat(document.getElementById('scoreEssay').value) || 1.0;
+        scoreSettings.percentages['Nhận biết'] = pK;
+        scoreSettings.percentages['Thông hiểu'] = pC;
+        scoreSettings.percentages['Vận dụng'] = pA;
+        closeScoreModal();
+        updateSummaryTable();
+        showSuccessMessage('Đã lưu thiết lập điểm số thành công!');
+    }
+
+    function updateScoreCalculationInModal() {
+        const mcScore = parseFloat(document.getElementById('scoreMultipleChoice').value) || 0;
+        const tfScore = parseFloat(document.getElementById('scoreTrueFalse').value) || 0;
+        const essayScore = parseFloat(document.getElementById('scoreEssay').value) || 0;
+        let totalMC = 0, totalTF = 0, totalEssay = 0;
+        Object.values(matrixData).forEach(cell => {
+            totalMC += cell.multipleChoice || 0;
+            totalTF += cell.trueFalse || 0;
+            totalEssay += cell.essay || 0;
+        });
+        const totalScore = (totalMC * mcScore) + (totalTF * tfScore) + (totalEssay * essayScore);
+        document.getElementById('scoreCalculation').innerHTML = `<div>Tổng điểm dự kiến: ${totalScore.toFixed(2)} điểm</div>`;
+    }
+
+    function updatePercentageTotalInModal() {
+        const total = (parseInt(document.getElementById('percentKnowledge').value) || 0) +
+                      (parseInt(document.getElementById('percentComprehension').value) || 0) +
+                      (parseInt(document.getElementById('percentApplication').value) || 0);
+        const totalEl = document.getElementById('totalPercent');
+        totalEl.textContent = `Tổng: ${total}%`;
+        totalEl.classList.toggle('text-green-600', total === 100);
+        totalEl.classList.toggle('dark:text-green-400', total === 100);
+        totalEl.classList.toggle('text-red-600', total !== 100);
+        totalEl.classList.toggle('dark:text-red-400', total !== 100);
+    }
+    
+    function escapeHTML(str) {
+        if (typeof str !== 'string') return str;
+        return str.replace(/[&<>"']/g, function(m) {
+            return {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[m];
+        });
+    }
+
+    // --- EXPOSE FUNCTIONS TO GLOBAL SCOPE ---
+    // Gán các hàm vào 'window' để HTML (onclick) có thể truy cập chúng
+    Object.assign(window, {
+        showTopicModal,
+        showScoreModal,
+        generateAITest,
+        exportMatrix,
+        exportExcel,
+        importMatrix,
+        showSaveFirebaseModal,
+        openLoadFirebaseModal,
+        clearAll,
+        closeTopicModal,
+        addTopic,
+        removeTopic,
+        openCellModal,
+        closeCellModal,
+        openSpecificationModal,
+        saveCellData,
+        closeAIModal,
+        regenerateTest,
+        exportTest,
+        closeScoreModal,
+        saveScoreSettings,
+        closeSpecificationModal,
+        importFromDocx,
+        clearLibrary,
+        searchSpecifications,
+        selectSpecification,
+        deleteSpecification,
+        closeSuccessModal,
+        closeSaveFirebaseModal,
+        saveMatrixToFirebase,
+        closeLoadFirebaseModal,
+        loadMatrixFromFirebase,
+        deleteMatrixFromFirebase,
+        updateTotalQuestionsInModal,
+        updateScoreCalculationInModal,
+        updatePercentageTotalInModal
+    });
+
+</script>
+</body>
+</html>
