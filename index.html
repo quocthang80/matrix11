@@ -652,13 +652,14 @@
         saveBtn.disabled = true;
         saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang lưu...';
 
-        const collectionPath = `artifacts/${appId}/users/${userId}/matrices`;
+        const collectionPath = `artifacts/${appId}/public/data/matrices`; // THAY ĐỔI: Đường dẫn công khai
         const dataToSave = {
             name: matrixName,
             topics: topics,
             matrixData: matrixData,
             scoreSettings: scoreSettings,
-            createdAt: serverTimestamp()
+            createdAt: serverTimestamp(),
+            ownerId: userId // THÊM MỚI: Lưu ID chủ sở hữu
         };
 
         try {
@@ -688,7 +689,7 @@
         modal.classList.remove('hidden');
         listContainer.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin text-2xl text-primary"></i><p class="mt-2">Đang tải danh sách ma trận...</p></div>';
 
-        const collectionPath = `artifacts/${appId}/users/${userId}/matrices`;
+        const collectionPath = `artifacts/${appId}/public/data/matrices`; // THAY ĐỔI: Đường dẫn công khai
         
         try {
             const q = query(collection(db, collectionPath)); // Không dùng orderBy theo hướng dẫn
@@ -710,24 +711,29 @@
                 return;
             }
 
-            listContainer.innerHTML = matrices.map(matrix => `
+            listContainer.innerHTML = matrices.map(matrix => { // THAY ĐỔI: Cập nhật logic hiển thị
+                const isOwner = matrix.ownerId === userId;
+                return `
                 <div class="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                     <div>
                         <span class="font-medium">${escapeHTML(matrix.name)}</span>
                         <span class="text-xs text-gray-500 dark:text-gray-400 block">
                             Lưu lúc: ${matrix.createdAt ? new Date(matrix.createdAt.toMillis()).toLocaleString('vi-VN') : 'Không rõ'}
                         </span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400 block" title="User ID của người tạo">
+                            Lưu bởi: ${matrix.ownerId ? escapeHTML(matrix.ownerId) : 'Không rõ'}
+                        </span>
                     </div>
                     <div class="space-x-2 flex-shrink-0">
                         <button onclick="loadMatrixFromFirebase('${matrix.id}')" class="btn-primary py-1 px-3 text-sm">
                             <i class="fas fa-folder-open mr-1"></i>Mở
                         </button>
-                        <button onclick="deleteMatrixFromFirebase('${matrix.id}', '${escapeHTML(matrix.name)}', this)" class="btn-danger py-1 px-3 text-sm">
+                        <button onclick="deleteMatrixFromFirebase('${matrix.id}', '${escapeHTML(matrix.name)}', this)" class="btn-danger py-1 px-3 text-sm ${!isOwner ? 'opacity-50 cursor-not-allowed' : ''}" ${!isOwner ? 'disabled title="Chỉ chủ sở hữu mới có thể xóa"' : ''}>
                             <i class="fas fa-trash mr-1"></i>Xóa
                         </button>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
 
         } catch (err) {
             console.error('Lỗi khi tải danh sách từ Firestore:', err);
@@ -741,7 +747,7 @@
                 showAlert('Kết nối bị gián đoạn. Vui lòng thử lại.');
                 return;
             }
-            const docPath = `artifacts/${appId}/users/${userId}/matrices/${docId}`;
+            const docPath = `artifacts/${appId}/public/data/matrices/${docId}`; // THAY ĐỔI: Đường dẫn công khai
             try {
                 const docSnap = await getDoc(doc(db, docPath));
                 if (docSnap.exists()) {
@@ -765,26 +771,39 @@
         });
     }
 
-    async function deleteMatrixFromFirebase(docId, matrixName, buttonElement) {
+    async function deleteMatrixFromFirebase(docId, matrixName, buttonElement) { // THAY ĐỔI: Cập nhật toàn bộ hàm
          showConfirmDialog(`Bạn có chắc chắn muốn xóa ma trận "${matrixName}"? Hành động này không thể hoàn tác.`, async () => {
             if (!isAuthReady || !userId) {
                 showAlert('Kết nối bị gián đoạn. Vui lòng thử lại.');
                 return;
             }
-            const docPath = `artifacts/${appId}/users/${userId}/matrices/${docId}`;
+            const docPath = `artifacts/${appId}/public/data/matrices/${docId}`;
+            const docRef = doc(db, docPath);
             
             // Vô hiệu hóa nút
             buttonElement.disabled = true;
             buttonElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
             try {
-                await deleteDoc(doc(db, docPath));
+                const docSnap = await getDoc(docRef);
+                if (!docSnap.exists()) {
+                    throw new Error("Không tìm thấy ma trận này.");
+                }
+
+                if (docSnap.data().ownerId !== userId) {
+                    showAlert('Bạn không có quyền xóa ma trận này. Chỉ chủ sở hữu mới có thể xóa.');
+                    throw new Error("Không có quyền xóa.");
+                }
+
+                await deleteDoc(docRef);
                 // Xóa phần tử khỏi DOM
                 buttonElement.closest('.flex.justify-between').remove();
                 showSuccessMessage(`Đã xóa ma trận "${matrixName}".`);
             } catch (err) {
                 console.error('Lỗi khi xóa ma trận:', err);
-                showAlert(`Lỗi khi xóa: ${err.message}`);
+                if (err.message !== "Không có quyền xóa.") {
+                     showAlert(`Lỗi khi xóa: ${err.message}`);
+                }
                 // Kích hoạt lại nút nếu lỗi
                 buttonElement.disabled = false;
                 buttonElement.innerHTML = '<i class="fas fa-trash mr-1"></i>Xóa';
@@ -1668,3 +1687,4 @@
 </script>
 </body>
 </html>
+
