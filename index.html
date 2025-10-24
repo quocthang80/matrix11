@@ -652,7 +652,7 @@
         saveBtn.disabled = true;
         saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang lưu...';
 
-        const collectionPath = `artifacts/${appId}/public/data/matrices`; // THAY ĐỔI: Đường dẫn công khai
+        const collectionPath = `artifacts/${appId}/public/data/matrices`; // THAY ĐỔI: Quay lại đường dẫn công khai
         const dataToSave = {
             name: matrixName,
             topics: topics,
@@ -689,7 +689,7 @@
         modal.classList.remove('hidden');
         listContainer.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin text-2xl text-primary"></i><p class="mt-2">Đang tải danh sách ma trận...</p></div>';
 
-        const collectionPath = `artifacts/${appId}/public/data/matrices`; // THAY ĐỔI: Đường dẫn công khai
+        const collectionPath = `artifacts/${appId}/public/data/matrices`; // THAY ĐỔI: Quay lại đường dẫn công khai
         
         try {
             const q = query(collection(db, collectionPath)); // Không dùng orderBy theo hướng dẫn
@@ -747,7 +747,7 @@
                 showAlert('Kết nối bị gián đoạn. Vui lòng thử lại.');
                 return;
             }
-            const docPath = `artifacts/${appId}/public/data/matrices/${docId}`; // THAY ĐỔI: Đường dẫn công khai
+            const docPath = `artifacts/${appId}/public/data/matrices/${docId}`; // THAY ĐỔI: Quay lại đường dẫn công khai
             try {
                 const docSnap = await getDoc(doc(db, docPath));
                 if (docSnap.exists()) {
@@ -777,7 +777,7 @@
                 showAlert('Kết nối bị gián đoạn. Vui lòng thử lại.');
                 return;
             }
-            const docPath = `artifacts/${appId}/public/data/matrices/${docId}`;
+            const docPath = `artifacts/${appId}/public/data/matrices/${docId}`; // THAY ĐỔI: Quay lại đường dẫn công khai
             const docRef = doc(db, docPath);
             
             // Vô hiệu hóa nút
@@ -1687,4 +1687,6 @@
 </script>
 </body>
 </html>
+
+
 
