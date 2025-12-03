@@ -1209,7 +1209,7 @@
         document.getElementById('aiContent').classList.add('hidden');
         const matrixSummary = generateMatrixSummary();
         const apiKey = "AIzaSyCaUvSJx7Zn_qmYXdqlynADWR9YpcaxmSs";
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${apiKey}`;
         const prompt = `Làm ơn tạo một đề kiểm tra hoàn chỉnh dựa trên ma trận và các thông tin chi tiết dưới đây:
 
 	${matrixSummary}
@@ -1696,6 +1696,7 @@
 </script>
 </body>
 </html>
+
 
 
 
